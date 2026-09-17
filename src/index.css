@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.leaflet-container { font-family: inherit; }
+.leaflet-container .leaflet-control-attribution { font-size: 10px; }
