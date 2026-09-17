@@ -17,7 +17,7 @@ export default function CaudalesApp() {
   const [punto, setPunto] = useState(null);          // { lat, lon }
   const [trKey, setTrKey] = useState("tr10");
   const [tecnica, setTecnica] = useState(false);
-  const [techTab, setTechTab] = useState("cuenca");
+  const [techTab, setTechTab] = useState("geo");
   const [opts, setOpts] = useState(DEFAULTS);
   const [showAbout, setShowAbout] = useState(false);
   const [fuera, setFuera] = useState(false);
@@ -225,10 +225,11 @@ function VistaSimple({ r }) {
 // ---------------------------------------------------------------------------
 function VistaTecnica({ r, techTab, setTechTab, opts, setOpts }) {
   const tabs = [
-    { key: "cuenca", label: "Cuenca" },
+    { key: "geo", label: "Geomorfología" },
+    { key: "uso", label: "Uso del suelo" },
     { key: "lluvia", label: "Lluvia" },
     { key: "caudal", label: "Caudales" },
-    { key: "metodo", label: "Método y supuestos" },
+    { key: "teoria", label: "Teoría y supuestos" },
   ];
   return (
     <div className="bg-white rounded-2xl border border-[#1F2A24]/10">
@@ -242,16 +243,17 @@ function VistaTecnica({ r, techTab, setTechTab, opts, setOpts }) {
         ))}
       </div>
       <div className="p-4 md:p-6 text-sm">
-        {techTab === "cuenca" && <TabCuenca r={r} />}
+        {techTab === "geo" && <TabGeo r={r} />}
+        {techTab === "uso" && <TabUso r={r} />}
         {techTab === "lluvia" && <TabLluvia r={r} />}
         {techTab === "caudal" && <TabCaudal r={r} />}
-        {techTab === "metodo" && <TabMetodo r={r} opts={opts} setOpts={setOpts} />}
+        {techTab === "teoria" && <TabTeoria r={r} opts={opts} setOpts={setOpts} />}
       </div>
     </div>
   );
 }
 
-function Tabla({ filas, head }) {
+function Tabla({ filas, head, mono = true }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -263,7 +265,7 @@ function Tabla({ filas, head }) {
         <tbody>
           {filas.map((f, i) => (
             <tr key={i} className="border-b border-[#1F2A24]/5 last:border-0">
-              {f.map((c, j) => <td key={j} className={`py-2 pr-4 ${j > 0 ? "text-right font-mono" : ""}`}>{c}</td>)}
+              {f.map((c, j) => <td key={j} className={`py-2 pr-4 align-top ${j > 0 ? `text-right ${mono ? "font-mono" : ""}` : ""}`}>{c}</td>)}
             </tr>
           ))}
         </tbody>
@@ -272,42 +274,133 @@ function Tabla({ filas, head }) {
   );
 }
 
-function TabCuenca({ r }) {
+// ---------- Geomorfología ----------
+function clasifKc(kc) {
+  if (kc == null) return "—";
+  if (kc < 1.25) return "Redonda a oval-redonda: concentra rápido la escorrentía, picos altos";
+  if (kc < 1.5) return "Oval-redonda a oval-oblonga: respuesta intermedia";
+  if (kc < 1.75) return "Oval-oblonga a rectangular-oblonga: respuesta lenta";
+  return "Rectangular-oblonga, muy alargada: picos atenuados";
+}
+function clasifDd(dd) {
+  if (dd < 0.5) return "Baja: suelos permeables o poca disección";
+  if (dd < 1.5) return "Media";
+  if (dd < 3.5) return "Alta: suelos poco permeables, relieve disectado";
+  return "Muy alta";
+}
+function clasifPend(p) {
+  if (p < 3) return "Plano";
+  if (p < 7) return "Suave";
+  if (p < 12) return "Medianamente accidentado";
+  if (p < 20) return "Accidentado";
+  if (p < 35) return "Fuertemente accidentado";
+  if (p < 50) return "Muy fuertemente accidentado";
+  return "Escarpado";
+}
+
+function TabGeo({ r }) {
   const c = r.cuenca, tc = r.tc;
+  const fila = (nombre, formula, valor, interp) => [
+    <div><div>{nombre}</div>{formula && <div className="text-[11px] text-[#1F2A24]/50 font-mono">{formula}</div>}</div>,
+    valor,
+    <span className="font-sans text-xs text-[#1F2A24]/70 text-left block max-w-xs">{interp}</span>,
+  ];
   return (
-    <div className="grid md:grid-cols-2 gap-6">
-      <div>
-        <h3 className="font-medium mb-2">Morfometría</h3>
-        <Tabla filas={[
-          ["Área de aportación", fmt.km2(c.area_km2)],
-          ["Subcuencas agregadas", c.n],
-          ["Orden de Strahler en la salida", c.orden ?? "—"],
-          ["Longitud del cauce principal", `${fmt.n(c.L_m, 0)} m`],
-          ["Cota máxima de la cuenca", fmt.m(c.z_max)],
-          ["Cota de inicio del cauce principal", fmt.m(c.z_top_cauce)],
-          ["Cota en el punto de salida", fmt.m(c.z_salida)],
-          ["Desnivel del cauce", fmt.m(c.desnivel_m)],
-          ["Pendiente del cauce", `${fmt.n(c.S_cauce * 100, 2)} %`],
-          ["Pendiente media del terreno", `${fmt.n(c.pend_pct, 1)} %`],
-        ]} />
+    <div className="space-y-6">
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <h3 className="font-medium mb-2">Parámetros de tamaño y relieve</h3>
+          <Tabla head={["Parámetro", "Valor", ""]} filas={[
+            fila("Área de aportación (A)", null, fmt.km2(c.area_km2), `${c.n} subcuenca${c.n > 1 ? "s" : ""} agregadas`),
+            fila("Perímetro (P)", "contorno generalizado a 100 m", c.perimetro_m ? `${fmt.n(c.perimetro_m / 1000, 1)} km` : "—", ""),
+            fila("Cota máxima", null, fmt.m(c.z_max), ""),
+            fila("Cota media", "ponderada por área", fmt.m(c.z_med), ""),
+            fila("Cota en la salida", null, fmt.m(c.z_salida), ""),
+            fila("Relieve máximo (H)", "z máx − z mín", fmt.m(c.relieve_m), ""),
+            fila("Pendiente media del terreno", "media de celdas del DEM", `${fmt.n(c.pend_pct, 1)} %`, clasifPend(c.pend_pct)),
+          ]} />
+        </div>
+        <div>
+          <h3 className="font-medium mb-2">Red de drenaje</h3>
+          <Tabla head={["Parámetro", "Valor", ""]} filas={[
+            fila("Orden de la cuenca (Strahler)", "orden del tramo de salida", c.orden_max ?? "—", c.orden_max >= 4 ? "Red jerarquizada, cuenca grande" : c.orden_max >= 2 ? "Red con afluentes" : "Cauce de cabecera sin afluentes"),
+            fila("Número de tramos", null, c.n, ""),
+            fila("Longitud total de cauces (ΣL)", null, `${fmt.n(c.L_total_m / 1000, 1)} km`, ""),
+            fila("Longitud del cauce principal (L)", "camino más largo", `${fmt.n(c.L_m / 1000, 2)} km`, ""),
+            fila("Desnivel del cauce principal", "z inicio − z salida", fmt.m(c.desnivel_m), ""),
+            fila("Pendiente del cauce principal (S)", "desnivel / L", `${fmt.n(c.S_cauce * 100, 2)} %`, ""),
+            fila("Densidad de drenaje (Dd)", "ΣL / A", `${fmt.n(c.Dd, 2)} km/km²`, clasifDd(c.Dd)),
+          ]} />
+        </div>
       </div>
-      <div>
-        <h3 className="font-medium mb-2">Cobertura y respuesta hidrológica</h3>
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <h3 className="font-medium mb-2">Índices de forma</h3>
+          <Tabla head={["Índice", "Valor", "Interpretación"]} filas={[
+            fila("Compacidad de Gravelius (Kc)", "0,28·P / √A", c.Kc ? fmt.n(c.Kc, 2) : "—", clasifKc(c.Kc)),
+            fila("Factor de forma de Horton (Kf)", "A / L²", fmt.n(c.Kf, 2), c.Kf > 0.5 ? "Cuenca ancha: tendencia a crecidas súbitas" : c.Kf > 0.25 ? "Forma intermedia" : "Cuenca alargada: crecidas atenuadas"),
+            fila("Relación de elongación (Re)", "1,128·√A / L", fmt.n(c.Re, 2), c.Re > 0.8 ? "Poco alargada" : c.Re > 0.6 ? "Alargamiento moderado" : "Muy alargada"),
+          ]} />
+        </div>
+        <div>
+          <h3 className="font-medium mb-2">Tiempo de concentración</h3>
+          <Tabla head={["Fórmula", "Valor", ""]} filas={[
+            fila("Kirpich (1940)", "0,0195·L^0,77·S^−0,385", `${fmt.n(tc.kirpich, 1)} min`, "Cuencas pequeñas y medianas con pendiente definida"),
+            fila("Témez (1978)", "0,3·(L/S^0,25)^0,76", `${fmt.n(tc.temez, 1)} min`, "Cuencas medianas y grandes"),
+            fila(`Adoptado (${tc.metodo === "kirpich" ? "Kirpich" : "Témez"})`, null, <strong>{fmt.n(tc.tc_min, 1)} min</strong>, "Selección automática por tamaño; editable en Teoría"),
+          ]} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Uso del suelo ----------
+const CLASES_USO = [
+  { key: "urbano", nombre: "Urbano (edificado, vías)", cn: "90", c: "0,75", color: "#8C5A3C" },
+  { key: "vegetacion", nombre: "Vegetación (bosque, matorral, páramo, humedal)", cn: "70 – 85", c: "0,30 – 0,50", color: "#2F6F5E" },
+  { key: "cultivo", nombre: "Cultivos", cn: "81", c: "0,45", color: "#C9A227" },
+  { key: "desnudo", nombre: "Suelo desnudo / nieve", cn: "91 – 98", c: "0,60 – 0,90", color: "#B0A99A" },
+  { key: "agua", nombre: "Cuerpos de agua", cn: "100", c: "1,00", color: "#2C6FB5" },
+];
+function TabUso({ r }) {
+  const c = r.cuenca, u = c.uso;
+  const A = c.area_km2;
+  const filas = CLASES_USO.map((k) => ({ ...k, frac: u[k.key] || 0, area: (u[k.key] || 0) * A })).filter((k) => k.frac > 0.0005);
+  return (
+    <div className="grid md:grid-cols-5 gap-6">
+      <div className="md:col-span-3">
+        <h3 className="font-medium mb-2">Cobertura del suelo en la cuenca (ESA WorldCover 2021, 10 m)</h3>
+        <div className="flex h-4 rounded-full overflow-hidden mb-3 border border-[#1F2A24]/10">
+          {filas.map((k) => <div key={k.key} style={{ width: `${k.frac * 100}%`, background: k.color }} title={`${k.nombre}: ${fmt.pct(k.frac)}`} />)}
+        </div>
+        <Tabla head={["Clase", "Área", "% cuenca", "CN (grupo C)", "C racional"]} filas={[
+          ...filas.map((k) => [
+            <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: k.color }} />{k.nombre}</span>,
+            fmt.km2(k.area), fmt.pct(k.frac), k.cn, k.c,
+          ]),
+          [<strong>Total / ponderado por área</strong>, <strong>{fmt.km2(A)}</strong>, <strong>100 %</strong>, <strong>{fmt.n(c.cn, 1)}</strong>, <strong>{fmt.n(c.c_rac, 2)}</strong>],
+        ]} />
+        <p className="text-xs text-[#1F2A24]/60 mt-3">
+          El CN y el C de la cuenca son la media ponderada por área de los valores de cada subcuenca, calculados en ArcGIS con la tabla completa de 11 clases WorldCover
+          (TR-55 y Chow). Los rangos de la tabla indican los valores de las subclases agrupadas. Grupo hidrológico de suelo asumido: C (suelos volcánicos y cangahua).
+        </p>
+      </div>
+      <div className="md:col-span-2 space-y-3">
+        <h3 className="font-medium mb-2">Respuesta hidrológica</h3>
         <Tabla filas={[
-          ["Urbano", fmt.pct(c.uso.urbano)],
-          ["Vegetación (bosque, matorral, páramo)", fmt.pct(c.uso.vegetacion)],
-          ["Cultivos", fmt.pct(c.uso.cultivo)],
-          ["Suelo desnudo", fmt.pct(c.uso.desnudo)],
-          ["Agua", fmt.pct(c.uso.agua)],
-          ["Número de curva CN (grupo C, AMC II)", fmt.n(c.cn, 1)],
+          ["Número de curva CN (AMC II)", fmt.n(c.cn, 1)],
+          ["Retención potencial S = 25400/CN − 254", `${fmt.n(25400 / c.cn - 254, 0)} mm`],
+          ["Abstracción inicial Ia = 0,2·S", `${fmt.n(0.2 * (25400 / c.cn - 254), 1)} mm`],
           ["Coeficiente de escorrentía C", fmt.n(c.c_rac, 2)],
+          ["Fracción impermeable aprox.", fmt.pct(u.urbano * 0.65 + u.agua)],
         ]} />
-        <h3 className="font-medium mb-2 mt-5">Tiempo de concentración</h3>
-        <Tabla filas={[
-          ["Kirpich", `${fmt.n(tc.kirpich, 1)} min`],
-          ["Témez", `${fmt.n(tc.temez, 1)} min`],
-          [`Adoptado (${tc.metodo === "kirpich" ? "Kirpich" : "Témez"})`, `${fmt.n(tc.tc_min, 1)} min`],
-        ]} />
+        <p className="text-xs text-[#1F2A24]/60">
+          Lectura: un CN de {fmt.n(c.cn, 0)} implica que los primeros {fmt.n(0.2 * (25400 / c.cn - 254), 0)} mm de lluvia no generan escorrentía.
+          {u.urbano > 0.4 ? " La cuenca es predominantemente urbana: respuesta rápida y picos altos; el método racional con C ponderado es adecuado." :
+           u.urbano > 0.15 ? " Cuenca mixta: revisar si la urbanización futura elevará el C." :
+           " Cuenca predominantemente natural: el páramo y el bosque amortiguan la escorrentía; el CN gobierna el resultado más que el C."}
+        </p>
       </div>
     </div>
   );
@@ -374,23 +467,79 @@ function TabCaudal({ r }) {
   );
 }
 
-function TabMetodo({ r, opts, setOpts }) {
+// ---------- Teoría ----------
+function Bloque({ titulo, children }) {
+  return (
+    <section className="space-y-1.5">
+      <h4 className="font-medium text-sm text-[#1F2A24]">{titulo}</h4>
+      <div className="text-xs text-[#1F2A24]/75 leading-relaxed space-y-1.5">{children}</div>
+    </section>
+  );
+}
+function F({ children }) { return <p className="font-mono bg-[#F6F4EE] rounded px-2 py-1 inline-block">{children}</p>; }
+
+function TabTeoria({ r, opts, setOpts }) {
   const set = (k, v) => setOpts({ ...opts, [k]: v });
   return (
-    <div className="grid md:grid-cols-2 gap-6">
+    <div className="grid md:grid-cols-3 gap-8">
+      <div className="md:col-span-2 space-y-6">
+        <Bloque titulo="1. Delimitación de la cuenca">
+          <p>Una cuenca es el territorio cuya escorrentía superficial converge a un mismo punto de salida. Se obtiene del modelo digital de elevación (DEM): tras rellenar depresiones espurias (<em>Fill</em>), a cada celda se le asigna la dirección de máxima pendiente hacia una de sus 8 vecinas (algoritmo D8) y se cuenta cuántas celdas drenan a cada una (<em>acumulación de flujo</em>). Las celdas con acumulación mayor a un umbral (aquí 0,5 km²) forman la red de drenaje; cada tramo entre confluencias tiene su propia subcuenca (<em>Watershed</em>).</p>
+          <p>La app no recalcula esto en línea: el DMQ se dividió previamente en 6.148 subcuencas que conocen su tramo receptor. Al elegir un punto, se localiza su subcuenca y se suman todas las que drenan hacia ella recorriendo la red aguas arriba. Por eso el punto de salida efectivo es el extremo aguas abajo del tramo, no el clic exacto.</p>
+        </Bloque>
+        <Bloque titulo="2. Geomorfología: por qué importa la forma">
+          <p>Dos cuencas con la misma área pueden responder de forma muy distinta a la misma lluvia. Una cuenca redonda y con alta densidad de drenaje concentra el agua rápidamente (hidrograma con pico alto y corto); una alargada lo distribuye en el tiempo.</p>
+          <F>Kc = 0,28 · P / √A</F> <span>Gravelius: 1 = círculo; mayor a 1,5 = alargada.</span><br />
+          <F>Kf = A / L²</F> <span>Horton: mayor a 0,5 = ancha, crecidas súbitas.</span><br />
+          <F>Re = 1,128 · √A / L</F> <span>Schumm: relación entre el diámetro del círculo equivalente y la longitud del cauce.</span><br />
+          <F>Dd = ΣL / A</F> <span>Densidad de drenaje (km/km²): eficiencia de la red para evacuar el agua; alta en suelos poco permeables.</span>
+          <p>Orden de Strahler: los cauces de cabecera son de orden 1; dos de igual orden n forman uno de orden n+1. El orden de la cuenca es el del tramo de salida y refleja la jerarquía de la red.</p>
+        </Bloque>
+        <Bloque titulo="3. Tiempo de concentración (tc)">
+          <p>Es el tiempo que tarda una gota caída en el punto hidráulicamente más lejano en llegar a la salida. Es la duración de lluvia crítica: una tormenta más corta no involucra toda la cuenca; una más larga tiene menor intensidad.</p>
+          <F>Kirpich: tc = 0,0195 · L^0,77 · S^−0,385</F> <span>(min; L en m; S en m/m)</span><br />
+          <F>Témez: tc = 0,3 · (L / S^0,25)^0,76</F> <span>(h; L en km)</span>
+          <p>Kirpich se desarrolló en cuencas pequeñas de Tennessee y tiende a subestimar en cuencas grandes; Témez proviene de cuencas españolas medianas. La app usa Kirpich hasta 10 km² y Témez por encima, con un mínimo de {opts.tc_min_min} min.</p>
+        </Bloque>
+        <Bloque titulo="4. Lluvia de diseño">
+          <p>Para cada estación FONAG se tomaron los máximos anuales de lluvia en 2 h y se ajustó una distribución de Gumbel, que da la lámina asociada a cada período de retorno TR (probabilidad anual de excedencia 1/TR). El valor en el punto se interpola con inverso de la distancia (1/d²) entre las 4 estaciones más cercanas.</p>
+          <p>Como el método racional necesita la intensidad para una duración igual al tc, se escala la intensidad de 2 h con una relación tipo Sherman:</p>
+          <F>i(t) = i₂ₕ · (120 / t)ⁿ</F> <span>n = {opts.n_idf} (valores típicos 0,5-0,7 en la Sierra)</span>
+          <p><strong>Este es el supuesto más sensible del cálculo.</strong> Debe reemplazarse por las curvas IDF oficiales de EPMAPS/INAMHI en cuanto estén disponibles; el resto de la cadena no cambia.</p>
+        </Bloque>
+        <Bloque titulo="5. Métodos de cálculo del caudal">
+          <p><strong>Racional.</strong> Supone lluvia uniforme sobre toda la cuenca durante un tiempo igual al tc y respuesta lineal:</p>
+          <F>Q = C · i · A / 3,6</F> <span>(m³/s; i en mm/h; A en km²)</span>
+          <p>C es el coeficiente de escorrentía (fracción de la lluvia que escurre), ponderado por área según la cobertura. Válido hasta 2,5 km²; entre 2,5 y 10 km² se acepta con reserva porque la lluvia deja de ser uniforme y la cuenca amortigua.</p>
+          <p><strong>Racional modificado (Témez).</strong> Corrige la no uniformidad temporal de la lluvia con un coeficiente K que crece con el tc:</p>
+          <F>Q = K · C · i · A / 3,6 &nbsp;&nbsp; K = 1 + tc^1,25 / (tc^1,25 + 14)</F> <span>(tc en h)</span>
+          <p><strong>Hidrograma unitario SCS.</strong> Para cuencas mayores a 10 km². Primero separa la lluvia efectiva Pe con el número de curva:</p>
+          <F>S = 25400/CN − 254 &nbsp;&nbsp; Pe = (P − 0,2·S)² / (P + 0,8·S)</F>
+          <p>y luego la transforma en caudal pico con el hidrograma unitario triangular:</p>
+          <F>Qp = 0,208 · A · Pe / tp &nbsp;&nbsp; tp = D/2 + 0,6·tc</F> <span>(tp en h; D = duración de la tormenta = máx(tc, 2 h))</span>
+          <p>El CN (0-100) resume cobertura, uso y grupo hidrológico del suelo; un CN alto significa poca infiltración. La app usa condición de humedad antecedente media (AMC II) y grupo C.</p>
+        </Bloque>
+        <Bloque titulo="6. Período de retorno y tipo de obra">
+          <p>TR 2-5 años: alcantarillado domiciliario y secundario. TR 10: colectores principales y drenaje vial urbano. TR 25: alcantarillas de carretera, puentes menores, SUDS de detención. Obras mayores (presas, puentes principales) exigen TR 50-100 y estudios específicos que exceden esta herramienta.</p>
+        </Bloque>
+        <Bloque titulo="7. Limitaciones">
+          <p>DEM de 30 m (modelo de superficie, incluye edificios y vegetación) y subcuencas de ~1 km²: el área es confiable, pero el punto de salida se ajusta al tramo. Uso de suelo de 2021. Grupo hidrológico único. Curvas IDF aproximadas. No considera redes de alcantarillado, embalses, trasvases ni control de obras existentes. Resultados para anteproyecto, no para diseño definitivo.</p>
+          <p className="text-[#1F2A24]/50">Referencias: Chow, Maidment &amp; Mays (1988) <em>Applied Hydrology</em>; USDA-SCS (1986) TR-55; Témez (1978, 1991); Kirpich (1940); Gravelius (1914); Horton (1932); Strahler (1957); Gumbel (1958); Zanaga et al. (2022) ESA WorldCover; Copernicus DEM GLO-30.</p>
+        </Bloque>
+      </div>
       <div className="space-y-3">
         <h3 className="font-medium">Parámetros ajustables</h3>
         <label className="block">
-          <span className="text-xs text-[#1F2A24]/60">Exponente IDF n (i = i₂ₕ · (120/t)ⁿ)</span>
+          <span className="text-xs text-[#1F2A24]/60">Exponente IDF n</span>
           <input type="number" step="0.05" min="0.3" max="0.9" value={opts.n_idf}
             onChange={(e) => set("n_idf", Number(e.target.value) || DEFAULTS.n_idf)}
-            className="mt-1 w-32 border border-[#1F2A24]/20 rounded-lg px-2 py-1 font-mono" />
+            className="mt-1 w-32 block border border-[#1F2A24]/20 rounded-lg px-2 py-1 font-mono" />
         </label>
         <label className="block">
           <span className="text-xs text-[#1F2A24]/60">Fórmula de tc</span>
           <select value={opts.metodo_tc} onChange={(e) => set("metodo_tc", e.target.value)}
-            className="mt-1 block border border-[#1F2A24]/20 rounded-lg px-2 py-1 bg-white">
-            <option value="auto">Automático (Kirpich ≤ 10 km², Témez &gt; 10 km²)</option>
+            className="mt-1 block border border-[#1F2A24]/20 rounded-lg px-2 py-1 bg-white text-sm">
+            <option value="auto">Automático por tamaño</option>
             <option value="kirpich">Kirpich</option>
             <option value="temez">Témez</option>
           </select>
@@ -399,19 +548,12 @@ function TabMetodo({ r, opts, setOpts }) {
           <span className="text-xs text-[#1F2A24]/60">tc mínimo (min)</span>
           <input type="number" step="1" min="5" max="30" value={opts.tc_min_min}
             onChange={(e) => set("tc_min_min", Number(e.target.value) || 10)}
-            className="mt-1 w-32 border border-[#1F2A24]/20 rounded-lg px-2 py-1 font-mono" />
+            className="mt-1 w-32 block border border-[#1F2A24]/20 rounded-lg px-2 py-1 font-mono" />
         </label>
         <button onClick={() => setOpts(DEFAULTS)} className="text-xs underline text-[#1F2A24]/60">Restablecer valores por defecto</button>
-      </div>
-      <div className="space-y-3 text-xs text-[#1F2A24]/75 leading-relaxed">
-        <h3 className="font-medium text-sm text-[#1F2A24]">Cómo se calcula</h3>
-        <p><strong>1. Área de aportación.</strong> El DMQ se dividió en 6.148 subcuencas (una por tramo de río, umbral de 0,5 km²) a partir del DEM Copernicus GLO-30 en ArcGIS Pro (Fill, D8, acumulación, Watershed). Cada subcuenca conoce su tramo receptor; al hacer clic la app localiza la subcuenca y suma todas las que drenan hacia ella.</p>
-        <p><strong>2. Morfometría.</strong> Cauce principal = camino más largo aguas arriba por la red; pendiente = desnivel entre su nacimiento y el punto de salida / longitud. Pendiente del terreno y cotas: estadística zonal del DEM.</p>
-        <p><strong>3. Cobertura.</strong> ESA WorldCover 2021 (10 m) tabulado por subcuenca. CN por clase según TR-55 (grupo hidrológico C, AMC II) y C racional según Chow, ponderados por área.</p>
-        <p><strong>4. Tiempo de concentración.</strong> Kirpich: tc = 0,0195·L^0,77·S^−0,385 (min). Témez: tc = 0,3·(L/S^0,25)^0,76 (h, L en km).</p>
-        <p><strong>5. Lluvia.</strong> Lluvia de 2 h por período de retorno (Gumbel a máximos anuales móviles, 12 estaciones FONAG 2020-2026), IDW en el punto. Intensidad para t = tc con relación tipo Sherman, n = {opts.n_idf}. <em>Supuesto a reemplazar cuando se disponga de curvas IDF oficiales.</em></p>
-        <p><strong>6. Caudal.</strong> Racional hasta 2,5 km²; racional con reserva (y Témez modificado) hasta 10 km²; SCS triangular (Qp = 0,208·A·Pe/tp, tp = D/2 + 0,6·tc) para cuencas mayores, con tormenta de duración max(tc, 2 h).</p>
-        <p className="text-[#1F2A24]/50">Refs: Chow, Maidment &amp; Mays (1988) Applied Hydrology; SCS TR-55 (1986); Témez (1991); Gumbel (1958).</p>
+        <div className="text-xs text-[#1F2A24]/60 pt-3 border-t border-[#1F2A24]/10">
+          Los cambios se aplican al instante a la cuenca seleccionada. Úsalos para ver la sensibilidad del caudal a cada supuesto.
+        </div>
       </div>
     </div>
   );
@@ -425,7 +567,7 @@ function Acerca() {
         <li>Elige el período de retorno según el tipo de obra (2-5 años alcantarillado, 10 colectores, 25 obras mayores).</li>
         <li>Haz clic en el mapa sobre el punto de salida: un cruce de quebrada, una alcantarilla, la entrada a un SUDS.</li>
         <li>Lee el área de aportación (resaltada en verde), el cauce principal (naranja) y el caudal de diseño. El círculo verde marca el punto de salida efectivo: el extremo aguas abajo del tramo de río al que pertenece tu punto.</li>
-        <li>Activa la vista técnica para ver la morfometría completa, las estaciones de lluvia usadas, los tres métodos de cálculo y los supuestos.</li>
+        <li>Activa la vista técnica: geomorfología e índices de forma, tabla de uso del suelo con CN y C, lluvia por estación, los tres métodos de cálculo y una pestaña de teoría con las fórmulas y supuestos.</li>
       </ol>
       <p className="text-[#1F2A24]/60">La precisión es la del DEM de 30 m y de subcuencas de ~1 km²: el punto se asocia al tramo de río más cercano. Es una herramienta de anteproyecto complementaria al <a className="underline" href="https://suds-quito.vercel.app" target="_blank" rel="noreferrer">Buscador de SUDS</a>.</p>
     </div>
