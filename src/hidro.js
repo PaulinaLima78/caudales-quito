@@ -60,10 +60,39 @@ export async function loadData(base = "/data") {
   ]);
   const subcuencas = feature(sTopo, sTopo.objects.subcuencas).features;
   const tramos = feature(tTopo, tTopo.objects.tramos).features;
-  return buildGraph(subcuencas, tramos);
+  return buildGraph(subcuencas, tramos, sTopo);
 }
 
-export function buildGraph(subcuencas, tramos) {
+// Longitud (m) de cada arco de la topología, decodificando la cuantización.
+// El contorno se generaliza con cuerdas de PASO_PERIM m para no contar el
+// zigzag de las celdas de 30 m del DEM (equivale a medir sobre una carta 1:25.000).
+const PASO_PERIM = 100;
+function arcLengths(topo) {
+  const { scale, translate } = topo.transform;
+  return topo.arcs.map((arc) => {
+    let x = 0, y = 0, len = 0, acc = 0, ax = null, ay = null, px = null, py = null;
+    for (const [dx, dy] of arc) {
+      x += dx; y += dy;
+      const lon = x * scale[0] + translate[0], lat = y * scale[1] + translate[1];
+      if (ax === null) { ax = lon; ay = lat; }
+      else {
+        acc += haversineKm(py, px, lat, lon) * 1000;
+        if (acc >= PASO_PERIM) { len += haversineKm(ay, ax, lat, lon) * 1000; ax = lon; ay = lat; acc = 0; }
+      }
+      px = lon; py = lat;
+    }
+    if (ax !== null && px !== null) len += haversineKm(ay, ax, py, px) * 1000;
+    return len;
+  });
+}
+function arcsOfGeometry(g) {
+  const out = [];
+  const walk = (a) => { for (const x of a) Array.isArray(x) ? walk(x) : out.push(x < 0 ? ~x : x); };
+  if (g.arcs) walk(g.arcs);
+  return out;
+}
+
+export function buildGraph(subcuencas, tramos, topo = null) {
   const byId = new Map();
   const children = new Map();
   for (const f of subcuencas) {
@@ -79,7 +108,22 @@ export function buildGraph(subcuencas, tramos) {
     }
   }
   const tramoById = new Map(tramos.map((t) => [t.properties.id_tramo, t]));
-  return { subcuencas, tramos, byId, children, tramoById };
+  let arcLen = null, arcsById = null;
+  if (topo) {
+    arcLen = arcLengths(topo);
+    arcsById = new Map(topo.objects.subcuencas.geometries.map((g) => [g.properties.id_tramo, arcsOfGeometry(g)]));
+  }
+  return { subcuencas, tramos, byId, children, tramoById, arcLen, arcsById };
+}
+
+// Perímetro (m) de la unión de un conjunto de subcuencas: arcos usados una sola vez
+export function perimetro(graph, ids) {
+  if (!graph.arcLen) return null;
+  const count = new Map();
+  for (const id of ids) for (const a of graph.arcsById.get(id) || []) count.set(a, (count.get(a) || 0) + 1);
+  let P = 0;
+  for (const [a, c] of count) if (c === 1) P += graph.arcLen[a];
+  return P;
 }
 
 function bboxOf(geom) {
@@ -170,6 +214,20 @@ export function delinear(graph, idSalida) {
   const desnivel = Math.max((cp.zTop ?? zMax) - zSalida, 1);
   const S = desnivel / L;
 
+  // Índices de forma y drenaje
+  let Ltotal = 0, ordenMax = 0, zSum = 0;
+  for (const id of ids) {
+    const p = graph.byId.get(id).properties;
+    Ltotal += p.long_m || 0;
+    if ((p.orden || 0) > ordenMax) ordenMax = p.orden;
+    zSum += (p.z_med || 0) * (p.area_km2 || 0);
+  }
+  const P_m = perimetro(graph, ids);
+  const Kc = P_m ? (0.28 * P_m) / Math.sqrt(area * 1e6) : null;      // Gravelius
+  const Kf = area / Math.pow(L / 1000, 2);                            // Horton
+  const Re = (1.128 * Math.sqrt(area)) / (L / 1000);                  // Schumm
+  const Dd = Ltotal / 1000 / area;                                    // km/km²
+
   return {
     idSalida, ids, n: ids.length,
     area_km2: area,
@@ -179,6 +237,9 @@ export function delinear(graph, idSalida) {
     uso: area ? { urbano: fUrb / area, vegetacion: fVeg / area, cultivo: fCul / area, desnudo: fDes / area, agua: fAgua / area } : null,
     z_max: zMax, z_salida: zSalida, z_top_cauce: cp.zTop,
     L_m: L, desnivel_m: desnivel, S_cauce: S,
+    z_med: area ? zSum / area : null,
+    perimetro_m: P_m, Kc, Kf, Re, Dd, L_total_m: Ltotal, orden_max: ordenMax,
+    relieve_m: zMax - zMinTerr,
     cauce_ids: cp.path,
     orden: salida.orden,
   };
