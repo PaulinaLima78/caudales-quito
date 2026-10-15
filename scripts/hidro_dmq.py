@@ -21,13 +21,13 @@ from arcpy.sa import (ExtractByMask, Fill, FlowDirection, FlowAccumulation, Con,
                       StreamLink, StreamOrder, Watershed, Slope, ZonalStatisticsAsTable)
 
 # ---------------- Parametros ----------------
-DEM_ENTRADA   = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\DEM\dem_dmq.tif"   # <-- ajusta
+DEM_ENTRADA   = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\DEM\dem_dmq_5m.tif"   # MDT 5 m (preparar_mdt5m.py). Copernicus 30 m: dem_dmq.tif
 GDB_AOI       = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\AOI\AOI_DMQ.gdb"
 AOI_MASCARA   = os.path.join(GDB_AOI, "DMQ_AOI_buffer5km")      # o DMQ_AOI_rect5km
 CARPETA_SAL   = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\HIDRO"
 GDB_NOMBRE    = "HIDRO_DMQ.gdb"
 EPSG_TRABAJO  = 32717          # WGS84 / UTM 17S, igual que el AOI
-TAMANO_CELDA  = 30             # m. None = usar el del DEM. Con DEM IGM de 3-4 m, 10 m es buen compromiso
+TAMANO_CELDA  = 5              # m. None = usar el del DEM. Si Fill/FlowAcc se quedan sin memoria, usar 10
 UMBRAL_KM2    = 0.5            # area minima de aportacion para iniciar un cauce (define tamano de subcuencas)
 # --------------------------------------------
 
