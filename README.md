@@ -8,9 +8,6 @@ Complementa al Buscador de SUDS (https://suds-quito.vercel.app). Por Paulina Lim
 1. `scripts/` contiene el preprocesamiento en ArcGIS Pro (arcpy):
    - `aoi_dmq.py` – AOI del DMQ con 5 km de holgura
    - `descargar_dem.py` – DEM Copernicus GLO-30 (30 m)
-   - MDT de 5 m del DMQ (`DEM\mdt_dmq_5m_lzw.tif`, mosaico de hojas, huecos rellenos con
-     el GLO-30; `mdt_fuente.tif` indica el origen de cada celda). `hidro_dmq.py` lo usa por defecto
-     y escribe en `HIDRO_5m`; los resultados de 30 m quedan en `HIDRO`.
    - `hidro_dmq.py` + `hidro_dmq_paso6.py` – Fill, D8, acumulación, red (umbral 0,5 km²),
      subcuencas por tramo, topología aguas abajo, atributos geomorfológicos
    - `uso_suelo_dmq.py` – ESA WorldCover 2021 → CN y C por subcuenca

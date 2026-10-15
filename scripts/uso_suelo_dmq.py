@@ -5,7 +5,7 @@ Uso de suelo por subcuenca (ESA WorldCover 10 m, 2021 v200) -> CN (SCS) y C (rac
 2. Mosaico, proyeccion a UTM 17S y recorte al AOI
 3. Tabulate Area por subcuenca (id_tramo)
 4. CN y C ponderados por area, usando el grupo hidrologico de suelo elegido
-5. Exporta HIDRO_5m\\web\\uso_suelo.csv para unirlo al TopoJSON con mapshaper:
+5. Exporta HIDRO\\web\\uso_suelo.csv para unirlo al TopoJSON con mapshaper:
 
    mapshaper subcuencas.json -join uso_suelo.csv keys=id_tramo,id_tramo -o force subcuencas.json
 """
@@ -20,9 +20,8 @@ from arcpy.sa import ExtractByMask, TabulateArea
 BASE        = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26"
 CARPETA_LC  = os.path.join(BASE, "USO_SUELO")
 GDB_AOI     = os.path.join(BASE, "AOI", "AOI_DMQ.gdb")
-CARPETA_HID = "HIDRO_5m"   # "HIDRO" = resultados de 30 m
-GDB_HIDRO   = os.path.join(BASE, CARPETA_HID, "HIDRO_DMQ.gdb")
-CARPETA_WEB = os.path.join(BASE, CARPETA_HID, "web")
+GDB_HIDRO   = os.path.join(BASE, "HIDRO", "HIDRO_DMQ.gdb")
+CARPETA_WEB = os.path.join(BASE, "HIDRO", "web")
 AOI_MASCARA = os.path.join(GDB_AOI, "DMQ_AOI_buffer5km")
 SUBCUENCAS  = os.path.join(GDB_HIDRO, "subcuencas")
 EPSG        = 32717
