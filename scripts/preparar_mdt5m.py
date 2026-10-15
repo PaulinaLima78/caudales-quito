@@ -27,7 +27,7 @@ import arcpy
 from arcpy.sa import Raster, Con, IsNull, ExtractByMask
 
 # ---------------- Parametros ----------------
-BASE        = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26"
+BASE        = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26"
 ZIP_QGIS    = r"C:\Users\Paulina\Downloads\Qgis-20261015T002545Z-1-001.zip"
 CARPETA_DEM = os.path.join(BASE, "DEM")
 CARPETA_MDT = os.path.join(CARPETA_DEM, "MDT_5m")          # aqui se descomprime todo

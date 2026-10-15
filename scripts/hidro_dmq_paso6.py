@@ -7,7 +7,7 @@ import os
 import arcpy
 from arcpy.sa import Raster, Slope, ZonalStatisticsAsTable
 
-CARPETA_SAL = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\HIDRO"
+CARPETA_SAL = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\HIDRO"
 gdb = os.path.join(CARPETA_SAL, "HIDRO_DMQ.gdb")
 
 arcpy.CheckOutExtension("Spatial")

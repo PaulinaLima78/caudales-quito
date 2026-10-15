@@ -17,7 +17,7 @@ import arcpy
 from arcpy.sa import ExtractByMask, TabulateArea
 
 # ---------------- Parametros ----------------
-BASE        = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26"
+BASE        = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26"
 CARPETA_LC  = os.path.join(BASE, "USO_SUELO")
 GDB_AOI     = os.path.join(BASE, "AOI", "AOI_DMQ.gdb")
 GDB_HIDRO   = os.path.join(BASE, "HIDRO", "HIDRO_DMQ.gdb")

@@ -13,8 +13,8 @@ import os
 import arcpy
 
 # ---------------- Parametros ----------------
-SHP_ZONAS = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\adm_zonal_a\202508_Limites_Administraciones_Zonales\organizacion_territorial_zonal_a.shp"
-CARPETA_SALIDA = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\AOI"
+SHP_ZONAS = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\adm_zonal_a\202508_Limites_Administraciones_Zonales\organizacion_territorial_zonal_a.shp"
+CARPETA_SALIDA = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\AOI"
 GDB_NOMBRE = "AOI_DMQ.gdb"
 HOLGURA = "5 Kilometers"
 EPSG_TRABAJO = 32717   # WGS 84 / UTM 17S. Cambia a 32717->31997 etc. si tu proyecto usa otro sistema

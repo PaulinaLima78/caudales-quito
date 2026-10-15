@@ -12,7 +12,7 @@ import os
 import urllib.request
 import arcpy
 
-CARPETA_DEM = r"C:\Users\Paulina\Desktop\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\DEM"
+CARPETA_DEM = r"C:\Users\Paulina\Desktop\UCE\UCE 2026\VINCULACION_ARQ\DMQ_HIDRO_26\DEM"
 SALIDA      = "dem_dmq.tif"
 BUCKET      = "https://copernicus-dem-30m.s3.amazonaws.com"
 
