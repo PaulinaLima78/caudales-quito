@@ -7,7 +7,7 @@ Salida  : ...\DMQ_HIDRO_26\DEM\dem_dmq_5m.tif   <- la ruta que espera hidro_dmq.
 
 Pasos:
   1. Descomprime el zip exterior y los zips interiores (cada uno en su carpeta)
-  2. Busca todos los rasters (tif, img, asc, grids ESRI, rasters en gdb) y
+  2. Busca los rasters de elevacion (nombre con "mdt", ver PATRONES_MDT) y
      reporta sistema de coordenadas, celda, extension y rango de cotas.
      REVISA ESTE REPORTE antes de seguir: el MDT del Municipio suele venir en
      TM-Quito (SIRES-DMQ), no en UTM 17S; aqui se reproyecta a EPSG:32717.
@@ -37,6 +37,9 @@ SALIDA      = os.path.join(CARPETA_DEM, "dem_dmq_5m.tif")
 EPSG        = 32717
 CELDA       = 5
 RELLENAR_CON_30M = True     # False = solo el MDT de 5 m (lo que quede fuera queda sin datos)
+# Solo se usan como cotas los rasters cuyo nombre contenga alguno de estos textos.
+# Asi se ignoran Direccion Flujo, Drenaje, PENDIENTE, Cuenca*.tif, etc.
+PATRONES_MDT = ["mdt"]
 # --------------------------------------------
 
 arcpy.CheckOutExtension("Spatial")
@@ -74,9 +77,13 @@ log("\n2. Rasters encontrados:")
 rasters = []
 for raiz, _, nombres in arcpy.da.Walk(CARPETA_MDT, datatype="RasterDataset"):
     for n in nombres:
-        rasters.append(os.path.join(raiz, n))
+        if any(pat.lower() in n.lower() for pat in PATRONES_MDT):
+            rasters.append(os.path.join(raiz, n))
+        else:
+            log(f"   (ignorado, no es MDT) {n}")
 if not rasters:
-    raise SystemExit(f"No se encontraron rasters en {CARPETA_MDT}. Revisa el contenido de los zip.")
+    raise SystemExit(f"No se encontraron rasters de elevacion en {CARPETA_MDT}. "
+                     f"Revisa el contenido de los zip o PATRONES_MDT.")
 
 info = []
 for r in rasters:
